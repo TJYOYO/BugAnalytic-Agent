@@ -1,0 +1,18 @@
+
+
+2026-10-07 16:20:45.123 28453-28453/com.example.myapp E/AndroidRuntime: FATAL EXCEPTION: main
+    Process: com.example.myapp, PID: 28453
+    java.lang.NullPointerException: Attempt to invoke virtual method 'int java.util.List.size()' on a null object reference
+        at com.example.myapp.ui.home.HomeAdapter.getItemCount(HomeAdapter.java:45)
+        at androidx.recyclerview.widget.RecyclerView$AdapterDataObservable.hasObservers(RecyclerView.java:12001)
+        at androidx.recyclerview.widget.RecyclerView$Adapter.notifyDataSetChanged(RecyclerView.java:7285)
+        at com.example.myapp.ui.home.HomeFragment$2.onResponse(HomeFragment.java:112)
+        at com.example.myapp.network.NetworkClient$1.run(NetworkClient.java:58)
+        at android.os.Handler.handleCallback(Handler.java:958)
+        at android.os.Handler.dispatchMessage(Handler.java:99)
+        at android.os.Looper.loopOnce(Looper.java:205)
+        at android.os.Looper.loop(Looper.java:294)
+        at android.main.ActivityThread.main(ActivityThread.java:8177)
+        at java.lang.reflect.Method.invoke(Native Method)
+        at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+        at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)
