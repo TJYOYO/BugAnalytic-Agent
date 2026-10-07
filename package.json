@@ -1,0 +1,42 @@
+{
+  "name": "buganalytic-agent",
+  "version": "1.0.0",
+  "description": "基于 DeepSeek 的 Bug 分析 Agent —— Node.js + React(Ink) + TypeScript 实现的交互式 CLI",
+  "type": "module",
+  "bin": {
+    "buganalyst": "./dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsx src/cli.tsx",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "cli",
+    "bugs",
+    "agent",
+    "deepseek",
+    "react",
+    "ink",
+    "typescript"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ink": "^5.0.1",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

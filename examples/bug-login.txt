@@ -1,0 +1,9 @@
+【环境】生产环境 / Windows / Chrome 最新版
+【模块】用户认证 / 登录接口
+【现象】点击“登录”按钮后，POST /api/login 返回 500，前端白屏。
+【日志】
+POST /api/login -> 500 Internal Server Error
+Error: Cannot read properties of undefined (reading 'username')
+    at loginHandler (src/auth/login.js:42:18)
+    at async routeHandler (src/server/router.js:88:5)
+【频率】约 10% 的用户可稳定复现，集中在账号名为纯数字的旧账号。
