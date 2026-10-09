@@ -1,12 +1,12 @@
 # BugAnalytic-Agent
 
-An interactive **DeepSeek**-powered Bug analysis agent, built with **Node.js + React (Ink) + TypeScript**.
+An interactive **LangChain + DeepSeek** Bug analysis agent, built with **Node.js + React (Ink) + TypeScript**.
 
 ## English
 
 ### What it is
 
-BugAnalytic-Agent is an interactive CLI that turns a raw bug report into a structured analysis by calling the DeepSeek Chat Completions API and streaming the answer back to your terminal.
+BugAnalytic-Agent is an interactive CLI that turns a raw bug report into a structured analysis through LangChain's `ChatOpenAI` integration, using the DeepSeek Chat Completions API and streaming the answer back to your terminal.
 
 - Type `Analytic` to open the analysis menu
 - Menu: `1. simple-analytic` (quick analysis) / `2. deep-analytic` (in-depth analysis) / `3. exit`
@@ -67,7 +67,7 @@ npm start
 
 ### Architecture
 
-The data flow is: **user input → command parsing → prompt building → DeepSeek call → streamed result back to the console**.
+The data flow is: **user input → command parsing → prompt building → LangChain model call → streamed result back to the console**.
 
 ```mermaid
 flowchart TD
@@ -76,7 +76,7 @@ flowchart TD
     B -->|"exit"| Z["Print 'exit' and quit"]
     C --> D["Bug input: raw text or @file path"]
     D --> E["buildMessages(): system prompt + user prompt"]
-    E --> F["DeepSeek Chat Completions API (stream = true)"]
+    E --> F["LangChain ChatOpenAI → DeepSeek API (stream = true)"]
     F -->|"SSE deltas"| G["onDelta() callback"]
     G --> H["Ink React state: setResult()"]
     H --> I["Console renders streaming text"]
@@ -84,7 +84,7 @@ flowchart TD
     J -->|"Enter"| C
 ```
 
-The same flow in plain text (`input -> DeepSeek call -> console`):
+The same flow in plain text (`input -> LangChain -> DeepSeek call -> console`):
 
 ```
 1. INPUT
@@ -95,11 +95,11 @@ The same flow in plain text (`input -> DeepSeek call -> console`):
 2. PROMPT
    buildMessages(kind, bugText)  ->  [ system prompt , user prompt ]
 
-3. DEEPSEEK CALL
-   analyzeBug() -> chatCompletion()
+3. LANGCHAIN MODEL CALL
+   analyzeBug() -> chatCompletion() -> ChatOpenAI.stream()
    POST {DEEPSEEK_BASE_URL}/chat/completions
    body: { model: deepseek-chat, messages, stream: true, temperature: 0.7 }
-   response: text/event-stream (SSE)
+   response: text/event-stream (SSE, parsed by LangChain)
         |
         +-- "data: {...}" -> delta.content -> onDelta(delta)   (each chunk)
         +-- "data: [DONE]"                  -> full text       (end of stream)
@@ -114,8 +114,8 @@ Key pieces:
 - `cli.tsx` — entry point: renders the Ink app for a TTY, otherwise runs line mode
 - `app.tsx` — Ink React state machine (`idle → menu → input → analyzing → result`)
 - `llm/prompts.ts` — builds the system/user messages for both analysis modes
-- `llm/deepseek.ts` — DeepSeek client, parses the SSE stream token by token
-- `llm/analyze.ts` — orchestrates config + prompt + API call
+- `llm/langchain.ts` — LangChain `ChatOpenAI` client, configured for DeepSeek's OpenAI-compatible API and streaming tokens
+- `llm/analyze.ts` — orchestrates config + prompt + LangChain model call
 - `onDelta` — pushes each streamed chunk into React state so the console updates live
 
 ### Tests
@@ -137,7 +137,7 @@ src/
 ├── texts.ts              # Banner / menu text
 ├── components/           # Banner, Menu, Spinner, TextInput components
 ├── llm/
-│   ├── deepseek.ts       # DeepSeek Chat Completions client (SSE streaming)
+│   ├── langchain.ts      # LangChain ChatOpenAI client (DeepSeek streaming)
 │   ├── prompts.ts        # Simple / deep analysis prompts
 │   └── analyze.ts        # Analysis orchestration
 └── *.test.ts             # Unit tests
@@ -148,11 +148,12 @@ src/
 - Node.js 18+ (built-in `fetch`)
 - React 18 + Ink 5 (React renderer for terminals)
 - TypeScript 5
-- DeepSeek API (`deepseek-chat`, streaming output)
+- LangChain (`@langchain/core` + `@langchain/openai`)
+- DeepSeek API (`deepseek-chat`, streaming output via OpenAI-compatible endpoint)
 
 ## 中文说明
 
-基于 **DeepSeek** 的 Bug 分析 Agent。使用 **Node.js + React (Ink) + TypeScript** 实现的交互式 CLI：
+基于 **LangChain + DeepSeek** 的 Bug 分析 Agent。使用 **Node.js + React (Ink) + TypeScript** 实现的交互式 CLI：
 
 - 输入 `Analytic` 进入分析菜单
 - 菜单：`1. simple-analytic`（快速分析）/ `2. deep-analytic`（深度分析）/ `3. exit`（退出）
@@ -222,7 +223,7 @@ flowchart TD
     B -->|"exit"| Z["输出 'exit' 并退出"]
     C --> D["Bug 输入：直接文本 或 @文件路径"]
     D --> E["buildMessages()：system prompt + user prompt"]
-    E --> F["DeepSeek Chat Completions API（stream = true）"]
+    E --> F["LangChain ChatOpenAI → DeepSeek API（stream = true）"]
     F -->|"SSE 增量"| G["onDelta() 回调"]
     G --> H["Ink React 状态：setResult()"]
     H --> I["控制台实时渲染流式文本"]
@@ -230,7 +231,7 @@ flowchart TD
     J -->|"回车"| C
 ```
 
-同一流程的纯文本视图（`输入 -> 调用 DeepSeek -> 返回控制台`）：
+同一流程的纯文本视图（`输入 -> LangChain -> 调用 DeepSeek -> 返回控制台`）：
 
 ```
 1. 输入（INPUT）
@@ -241,11 +242,11 @@ flowchart TD
 2. 构建 Prompt
    buildMessages(kind, bugText)  ->  [ system prompt , user prompt ]
 
-3. 调用 DeepSeek
-   analyzeBug() -> chatCompletion()
+3. 调用 LangChain 模型
+   analyzeBug() -> chatCompletion() -> ChatOpenAI.stream()
    POST {DEEPSEEK_BASE_URL}/chat/completions
    body: { model: deepseek-chat, messages, stream: true, temperature: 0.7 }
-   response: text/event-stream（SSE）
+   response: text/event-stream（SSE，由 LangChain 解析）
         |
         +-- "data: {...}"   -> delta.content -> onDelta(delta)   （每个分片）
         +-- "data: [DONE]"  -> 完整文本                          （流结束）
@@ -260,8 +261,8 @@ flowchart TD
 - `cli.tsx` — 入口：TTY 下渲染 Ink 应用，否则走行模式
 - `app.tsx` — Ink React 状态机（`idle → menu → input → analyzing → result`）
 - `llm/prompts.ts` — 构建两种分析模式的 system / user 消息
-- `llm/deepseek.ts` — DeepSeek 客户端，逐条解析 SSE 流
-- `llm/analyze.ts` — 编排配置 + Prompt + API 调用
+- `llm/langchain.ts` — LangChain `ChatOpenAI` 客户端，通过 DeepSeek 的 OpenAI 兼容 API 流式调用
+- `llm/analyze.ts` — 编排配置 + Prompt + LangChain 模型调用
 - `onDelta` — 把每个流式分片写入 React 状态，实现控制台实时刷新
 
 ### 测试
@@ -283,7 +284,7 @@ src/
 ├── texts.ts              # Banner / 菜单图形文本
 ├── components/           # Banner、Menu、Spinner、TextInput 组件
 ├── llm/
-│   ├── deepseek.ts       # DeepSeek Chat Completions 客户端（SSE 流式）
+│   ├── langchain.ts      # LangChain ChatOpenAI 客户端（DeepSeek 流式）
 │   ├── prompts.ts        # 快速 / 深度分析 Prompt
 │   └── analyze.ts        # 分析编排
 └── *.test.ts             # 单元测试
@@ -294,4 +295,5 @@ src/
 - Node.js 18+（内置 fetch）
 - React 18 + Ink 5（终端 React 渲染）
 - TypeScript 5
-- DeepSeek API（`deepseek-chat`，流式输出）
+- LangChain（`@langchain/core` + `@langchain/openai`）
+- DeepSeek API（`deepseek-chat`，通过 OpenAI 兼容接口流式输出）

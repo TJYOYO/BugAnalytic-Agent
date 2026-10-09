@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { mock, test } from "node:test";
-import { chatCompletion } from "./deepseek.js";
+import { chatCompletion } from "./langchain.js";
 
-test("chatCompletion 发送请求并通过 SSE 流式返回内容", async () => {
+test("chatCompletion 使用 LangChain 发送请求并流式返回内容", async () => {
   const sse = [
     'data: {"choices":[{"delta":{"content":"你好"}}]}',
-    'data: {"choices":[{"delta":{"content":"世界"}}]}',
-    "data: [DONE]",
     "",
+    'data: {"choices":[{"delta":{"content":"世界"}}]}',
+    "",
+    "data: [DONE]",
     "",
   ].join("\n");
   const stream = new ReadableStream({

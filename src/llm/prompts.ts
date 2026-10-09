@@ -1,9 +1,6 @@
-export type AnalysisKind = "simple" | "deep";
+import type { ChatMessage } from "./langchain.js";
 
-export interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
+export type AnalysisKind = "simple" | "deep";
 
 const SIMPLE_SYSTEM = `你是一位资深的 Bug 分析专家。请对用户给出的 bug 进行快速分析，输出简洁、可执行的结论。
 必须使用中文，并严格按以下 Markdown 结构输出：

@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import { chatCompletion } from "./deepseek.js";
+import { chatCompletion } from "./langchain.js";
 import { buildMessages, type AnalysisKind } from "./prompts.js";
 
 export interface AnalyzeOptions {
