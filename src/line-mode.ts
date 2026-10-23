@@ -3,19 +3,22 @@ import { resolveBugInput } from "./bug-input.js";
 import { parseCommand } from "./command.js";
 import type { AppConfig } from "./config.js";
 import { analyzeBug } from "./llm/analyze.js";
+import { ConversationMemory } from "./llm/conversation.js";
 import type { AnalysisKind } from "./llm/prompts.js";
 import { BannerText, MenuText } from "./texts.js";
 
 type LineScreen = "idle" | "menu" | "input";
 
-function promptFor(screen: LineScreen): void {
+function promptFor(screen: LineScreen, hasHistory = false): void {
   if (screen === "idle") {
     process.stdout.write("\n> 输入 Analytic 开始分析，输入 exit 退出：");
   } else if (screen === "menu") {
     process.stdout.write("\n> 请选择 (1/2/3)：");
   } else {
     process.stdout.write(
-      "\n请输入 Bug 描述（支持 @<文件路径>），回车开始分析；输入 exit 退出，menu 返回菜单：",
+      hasHistory
+        ? "\n请输入补充信息或追问（支持 @<文件路径>），回车继续分析；输入 exit 退出，menu 开始新的分析："
+        : "\n请输入 Bug 描述（支持 @<文件路径>），回车开始分析；输入 exit 退出，menu 返回菜单：",
     );
   }
 }
@@ -28,8 +31,9 @@ export async function runLineMode(config: AppConfig): Promise<void> {
 
   let screen: LineScreen = "idle";
   let kind: AnalysisKind = "simple";
+  const memory = new ConversationMemory();
 
-  promptFor(screen);
+  promptFor(screen, memory.hasHistory);
   for await (const raw of rl) {
     const line = raw.trim();
 
@@ -53,6 +57,7 @@ export async function runLineMode(config: AppConfig): Promise<void> {
       }
       if (cmd.type === "simple" || cmd.type === "deep") {
         kind = cmd.type;
+        memory.clear();
         screen = "input";
         console.log(
           kind === "simple"
@@ -69,6 +74,7 @@ export async function runLineMode(config: AppConfig): Promise<void> {
         break;
       }
       if (lower === "menu" || lower === "back") {
+        memory.clear();
         screen = "menu";
         console.log(MenuText);
       } else {
@@ -78,18 +84,23 @@ export async function runLineMode(config: AppConfig): Promise<void> {
         } else {
           console.log("\n正在调用 DeepSeek 分析中...\n");
           try {
-            const result = await analyzeBug({ config, kind, bugText: input.value });
+            const result = await analyzeBug({
+              config,
+              kind,
+              bugText: input.value,
+              history: memory.getMessages(),
+            });
+            memory.addExchange(input.value, result);
             console.log(`\n${result}\n`);
           } catch (error) {
             console.error(`\n[错误] ${error instanceof Error ? error.message : String(error)}\n`);
           }
-          screen = "menu";
-          console.log(MenuText);
+          screen = "input";
         }
       }
     }
 
-    promptFor(screen);
+    promptFor(screen, memory.hasHistory);
   }
 
   rl.close();

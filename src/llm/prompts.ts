@@ -2,6 +2,11 @@ import type { ChatMessage } from "./langchain.js";
 
 export type AnalysisKind = "simple" | "deep";
 
+type ConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 const SIMPLE_SYSTEM = `你是一位资深的 Bug 分析专家。请对用户给出的 bug 进行快速分析，输出简洁、可执行的结论。
 必须使用中文，并严格按以下 Markdown 结构输出：
 ## 问题概述
@@ -29,11 +34,26 @@ const DEEP_SYSTEM = `你是一位资深软件工程师与根因分析专家。�
 ## 8. 预防措施
 注意：信息不足时明确列出需要补充的信息，不要臆造事实。`;
 
-export function buildMessages(kind: AnalysisKind, bugText: string): ChatMessage[] {
+export function buildMessages(
+  kind: AnalysisKind,
+  bugText: string,
+  history: ChatMessage[] = [],
+): ChatMessage[] {
   const system = kind === "simple" ? SIMPLE_SYSTEM : DEEP_SYSTEM;
   const modeLabel = kind === "simple" ? "快速分析 (simple-analytic)" : "深度分析 (deep-analytic)";
+  const conversation: ConversationMessage[] = history.flatMap((message) =>
+    message.role === "user" || message.role === "assistant"
+      ? [{ role: message.role, content: message.content }]
+      : [],
+  );
+  const inputLabel = conversation.length > 0 ? "本轮补充信息或追问" : "Bug 描述";
+
   return [
     { role: "system", content: system },
-    { role: "user", content: `【分析模式】${modeLabel}\n\n【Bug 描述】\n${bugText.trim() || "(未提供描述)"}` },
+    ...conversation,
+    {
+      role: "user",
+      content: `【分析模式】${modeLabel}\n\n【${inputLabel}】\n${bugText.trim() || "(未提供描述)"}`,
+    },
   ];
 }

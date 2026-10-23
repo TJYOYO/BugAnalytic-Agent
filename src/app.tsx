@@ -8,6 +8,7 @@ import { Spinner } from "./components/Spinner.js";
 import { TextInput } from "./components/TextInput.js";
 import type { AppConfig } from "./config.js";
 import { analyzeBug } from "./llm/analyze.js";
+import { ConversationMemory } from "./llm/conversation.js";
 import type { AnalysisKind } from "./llm/prompts.js";
 
 type Screen = "idle" | "menu" | "input" | "analyzing" | "result";
@@ -25,6 +26,7 @@ export function App({ config }: AppProps) {
   const [hint, setHint] = useState<string | undefined>();
   const [result, setResult] = useState("");
   const [error, setError] = useState<string | undefined>();
+  const memory = useRef(new ConversationMemory());
 
   function quit(): void {
     console.log("exit");
@@ -34,6 +36,7 @@ export function App({ config }: AppProps) {
   }
 
   function backToMenu(): void {
+    memory.current.clear();
     setScreen("menu");
     setCommand("");
     setBugText("");
@@ -43,6 +46,7 @@ export function App({ config }: AppProps) {
   }
 
   function startInput(nextKind: AnalysisKind): void {
+    memory.current.clear();
     setKind(nextKind);
     setCommand("");
     setHint(undefined);
@@ -71,6 +75,7 @@ export function App({ config }: AppProps) {
       config,
       kind,
       bugText,
+      history: memory.current.getMessages(),
       onDelta: (delta) => {
         full += delta;
         setResult(full);
@@ -78,6 +83,7 @@ export function App({ config }: AppProps) {
       signal: controller.signal,
     })
       .then((text) => {
+        memory.current.addExchange(bugText, text);
         setResult(text);
         setScreen("result");
       })
@@ -155,7 +161,9 @@ export function App({ config }: AppProps) {
             {kind === "simple" ? "【1. simple-analytic】快速分析" : "【2. deep-analytic】深度分析"}
           </Text>
           <Text color="gray">
-            请输入 Bug 描述（可用 @&lt;文件路径&gt; 读取），回车开始分析；输入 exit 退出，menu 返回菜单。
+            {memory.current.hasHistory
+              ? "请输入补充信息或追问（可用 @<文件路径> 读取），回车继续分析；输入 exit 退出，menu 开始新的分析。"
+              : "请输入 Bug 描述（可用 @<文件路径> 读取），回车开始分析；输入 exit 退出，menu 返回菜单。"}
           </Text>
           <TextInput
             value={command}
@@ -197,20 +205,36 @@ export function App({ config }: AppProps) {
         <Box marginTop={1} flexDirection="column">
           {error !== undefined ? <Text color="red">[错误] {error}</Text> : <Text>{result}</Text>}
           <Box marginTop={1}>
-            <Text color="yellow">回车返回菜单，输入 exit 退出</Text>
+            <Text color="yellow">输入补充信息或追问继续当前 Bug；输入 menu 开始新的分析，exit 退出</Text>
           </Box>
           <TextInput
             value={command}
             onChange={setCommand}
             onSubmit={(value) => {
-              if (value.trim().toLowerCase() === "exit") {
+              const lower = value.trim().toLowerCase();
+              if (lower === "exit") {
                 quit();
                 return;
               }
-              backToMenu();
+              if (!lower || lower === "menu" || lower === "back") {
+                backToMenu();
+                return;
+              }
+              const input = resolveBugInput(value);
+              if (!input.ok) {
+                setHint(input.error);
+                return;
+              }
+              setBugText(input.value);
+              setHint(undefined);
+              setCommand("");
+              setResult("");
+              setError(undefined);
+              setScreen("analyzing");
             }}
-            placeholder="回车 / exit"
+            placeholder="补充信息 / 追问 / menu / exit"
           />
+          {hint !== undefined && <Text color="red">{hint}</Text>}
         </Box>
       )}
     </Box>

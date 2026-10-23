@@ -11,6 +11,7 @@ BugAnalytic-Agent is an interactive CLI that turns a raw bug report into a struc
 - Type `Analytic` to open the analysis menu
 - Menu: `1. simple-analytic` (quick analysis) / `2. deep-analytic` (in-depth analysis) / `3. exit`
 - Type `exit` to print `exit` and quit
+- After an analysis, enter additional evidence or a follow-up question to continue the same Bug conversation; enter `menu` to start a new analysis
 
 ### Quick start
 
@@ -57,7 +58,8 @@ npm start
 2. Enter `1` for simple-analytic (quick) or `2` for deep-analytic (in-depth)
 3. Paste a bug description, or use `@examples/bug-login.txt` to read a sample file
 4. Watch DeepSeek stream the analysis back into the console
-5. Enter `3` or `exit` to print `exit` and quit
+5. Enter more evidence or a follow-up question to continue analyzing the same Bug with the previous conversation retained
+6. Enter `menu` to clear the current Bug context and choose a new mode; enter `3` or `exit` to quit
 
 > When stdin is not a TTY (for example, a pipe), the CLI automatically switches to line mode, which is convenient for CI and scripting:
 >
@@ -67,7 +69,7 @@ npm start
 
 ### Architecture
 
-The data flow is: **user input → command parsing → prompt building → LangChain model call → streamed result back to the console**.
+The data flow is: **user input → conversation memory → prompt building → LangChain model call → streamed result back to the console**. The latest eight complete user/assistant exchanges for the active Bug are kept in memory. Selecting a new mode or entering `menu` clears that memory so unrelated Bugs do not share context.
 
 ```mermaid
 flowchart TD
@@ -75,7 +77,8 @@ flowchart TD
     B -->|"Analytic"| C["Menu: 1 simple / 2 deep / 3 exit"]
     B -->|"exit"| Z["Print 'exit' and quit"]
     C --> D["Bug input: raw text or @file path"]
-    D --> E["buildMessages(): system prompt + user prompt"]
+    D --> M["Conversation memory: latest 8 exchanges"]
+    M --> E["buildMessages(): system prompt + history + current user prompt"]
     E --> F["LangChain ChatOpenAI → DeepSeek API (stream = true)"]
     F -->|"SSE deltas"| G["onDelta() callback"]
     G --> H["Ink React state: setResult()"]
@@ -90,10 +93,10 @@ The same flow in plain text (`input -> LangChain -> DeepSeek call -> console`):
 1. INPUT
    terminal (TTY)  ->  "Analytic"  ->  parseCommand("idle")  ->  main menu
    main menu       ->  "1" / "2"   ->  parseCommand("menu")  ->  simple | deep
-   bug description ->  raw text or "@examples/bug-login.txt" ->  resolveBugInput()
+   bug description / follow-up -> raw text or "@examples/bug-login.txt" -> resolveBugInput()
 
 2. PROMPT
-   buildMessages(kind, bugText)  ->  [ system prompt , user prompt ]
+   buildMessages(kind, bugText, history) -> [ system prompt, prior user/assistant turns, current user prompt ]
 
 3. LANGCHAIN MODEL CALL
    analyzeBug() -> chatCompletion() -> ChatOpenAI.stream()
@@ -116,6 +119,7 @@ Key pieces:
 - `llm/prompts.ts` — builds the system/user messages for both analysis modes
 - `llm/langchain.ts` — LangChain `ChatOpenAI` client, configured for DeepSeek's OpenAI-compatible API and streaming tokens
 - `llm/analyze.ts` — orchestrates config + prompt + LangChain model call
+- `llm/conversation.ts` — retains the last eight complete exchanges for the active Bug conversation
 - `onDelta` — pushes each streamed chunk into React state so the console updates live
 
 ### Tests
@@ -158,6 +162,7 @@ src/
 - 输入 `Analytic` 进入分析菜单
 - 菜单：`1. simple-analytic`（快速分析）/ `2. deep-analytic`（深度分析）/ `3. exit`（退出）
 - 输入 `exit` 输出 `exit` 并退出
+- 单次分析完成后可继续输入补充信息或追问；系统会保留当前 Bug 的上下文。输入 `menu` 可清空上下文并开始新的分析
 
 ### 快速开始
 
@@ -204,7 +209,8 @@ npm start
 2. 输入 `1` 选择 simple-analytic（快速分析），或 `2` 选择 deep-analytic（深度分析）
 3. 粘贴 Bug 描述，或输入 `@examples/bug-login.txt` 读取示例文件
 4. 等待 DeepSeek 返回流式分析结果
-5. 输入 `3` 或 `exit`，CLI 输出 `exit` 并退出
+5. 继续输入补充信息或追问，基于之前的 Bug 上下文继续分析
+6. 输入 `menu` 清空当前 Bug 上下文并重新选模式；输入 `3` 或 `exit`，CLI 输出 `exit` 并退出
 
 > 非交互（stdin 非 TTY，如管道）时自动切换为行输入模式，方便 CI / 脚本调用：
 >
@@ -214,7 +220,7 @@ npm start
 
 ### 项目架构
 
-整体数据流向为：**用户输入 → 命令解析 → Prompt 构建 → 调用 DeepSeek → 结果流式返回到控制台**。
+整体数据流向为：**用户输入 → 对话记忆 → Prompt 构建 → 调用 DeepSeek → 结果流式返回到控制台**。当前 Bug 会保留最近 8 轮完整的用户/助手对话；重新选择模式或输入 `menu` 会清空记忆，避免不同 Bug 串上下文。
 
 ```mermaid
 flowchart TD
@@ -222,7 +228,8 @@ flowchart TD
     B -->|"Analytic"| C["菜单：1 快速 / 2 深度 / 3 退出"]
     B -->|"exit"| Z["输出 'exit' 并退出"]
     C --> D["Bug 输入：直接文本 或 @文件路径"]
-    D --> E["buildMessages()：system prompt + user prompt"]
+    D --> M["对话记忆：最近 8 轮"]
+    M --> E["buildMessages()：system prompt + 历史 + 当前用户消息"]
     E --> F["LangChain ChatOpenAI → DeepSeek API（stream = true）"]
     F -->|"SSE 增量"| G["onDelta() 回调"]
     G --> H["Ink React 状态：setResult()"]
@@ -237,10 +244,10 @@ flowchart TD
 1. 输入（INPUT）
    终端（TTY）   ->  输入 "Analytic"  ->  parseCommand("idle")  ->  主菜单
    主菜单        ->  输入 "1" / "2"   ->  parseCommand("menu")  ->  simple | deep
-   Bug 描述      ->  直接文本 或 "@examples/bug-login.txt"  ->  resolveBugInput()
+   bug 描述 / 追问 ->  直接文本 或 "@examples/bug-login.txt" ->  resolveBugInput()
 
 2. 构建 Prompt
-   buildMessages(kind, bugText)  ->  [ system prompt , user prompt ]
+   buildMessages(kind, bugText, history) -> [ system prompt, 历史用户/助手消息, 当前用户消息 ]
 
 3. 调用 LangChain 模型
    analyzeBug() -> chatCompletion() -> ChatOpenAI.stream()
@@ -263,6 +270,7 @@ flowchart TD
 - `llm/prompts.ts` — 构建两种分析模式的 system / user 消息
 - `llm/langchain.ts` — LangChain `ChatOpenAI` 客户端，通过 DeepSeek 的 OpenAI 兼容 API 流式调用
 - `llm/analyze.ts` — 编排配置 + Prompt + LangChain 模型调用
+- `llm/conversation.ts` — 保留当前 Bug 最近 8 轮完整用户/助手对话
 - `onDelta` — 把每个流式分片写入 React 状态，实现控制台实时刷新
 
 ### 测试
