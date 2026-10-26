@@ -1,6 +1,6 @@
 // 导入 LangChain 的三种标准消息类型，用于将项目消息转换为模型可识别的格式。
 import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
-// 导入 OpenAI 兼容聊天模型；DeepSeek 的 Chat Completions API 也兼容该接口。
+// 导入 OpenAI 兼容聊天模型；各 LLM 提供方均通过 Chat Completions API 接入。
 import { ChatOpenAI } from "@langchain/openai";
 
 // 定义项目内部使用的简化聊天消息结构。
@@ -13,11 +13,11 @@ export interface ChatMessage {
 
 // 定义调用 LangChain 模型时需要的配置与回调。
 export interface LangChainOptions {
-  // DeepSeek API 密钥。
+  // OpenAI 兼容 API 密钥。
   apiKey: string;
   // 可选的 OpenAI 兼容 API 基础地址。
   baseUrl?: string;
-  // 可选的模型名称；未提供时使用 deepseek-chat。
+  // 可选的模型名称；未提供时保持 DeepSeek 的历史默认值。
   model?: string;
   // 可选的请求超时时间，单位为毫秒。
   timeoutMs?: number;
@@ -35,11 +35,11 @@ export async function chatCompletion(
   messages: ChatMessage[],
   // 异步完成后返回拼接好的完整文本。
 ): Promise<string> {
-  // 创建 LangChain ChatOpenAI 实例，并配置为访问 DeepSeek 的兼容接口。
+  // 创建 LangChain ChatOpenAI 实例，并配置为访问选定提供方的兼容接口。
   const model = new ChatOpenAI({
-    // 传入 DeepSeek API 密钥。
+    // 传入提供方 API 密钥。
     apiKey: options.apiKey,
-    // 优先使用调用方模型；否则使用默认 deepseek-chat。
+    // 优先使用调用方模型；否则保持 DeepSeek 的历史默认值。
     model: options.model ?? "deepseek-chat",
     // 设置生成随机性，数值越低回复越稳定。
     temperature: 0.7,

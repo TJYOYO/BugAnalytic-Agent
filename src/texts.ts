@@ -41,13 +41,21 @@ export const BannerText = [
   "   ██████╔╝╚██████╔╝╚██████╔╝███████║",
   "   ╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝",
   "",
-  "   🐞 BUG ANALYTIC AGENT —— 基于 DeepSeek 的智能 Bug 分析助手",
+  "   🐞 BUG ANALYTIC AGENT —— 多模型智能 Bug 分析助手",
   "   ════════════════════════════════════════════════════════════",
   "",
 ].join("\n");
 
-export const MenuText = makeBox("🐞 请选择分析模式", [
+export const ProviderMenuText = makeBox("🐞 请选择 LLM", [
+  "1. DeepSeek",
+  "2. ChatGPT（OpenAI）",
+  "3. GitHub Copilot（GitHub Models）",
+  "4. exit               退出",
+]);
+
+export const AnalysisMenuText = makeBox("🐞 请选择分析模式", [
   "1. simple-analytic    快速分析（快速定位与修复建议）",
   "2. deep-analytic      深度分析（根因分析与完整报告）",
-  "3. exit               退出",
+  "3. back               返回 LLM 选择",
+  "4. exit               退出",
 ]);

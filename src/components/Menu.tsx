@@ -1,7 +1,9 @@
 import React from "react";
 import { Text } from "ink";
-import { MenuText } from "../texts.js";
+interface MenuProps {
+  text: string;
+}
 
-export function Menu() {
-  return <Text color="cyan">{MenuText}</Text>;
+export function Menu({ text }: MenuProps) {
+  return <Text color="cyan">{text}</Text>;
 }

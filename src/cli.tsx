@@ -8,9 +8,9 @@ import { runLineMode } from "./line-mode.js";
 async function main(): Promise<void> {
   const config = getConfig();
 
-  if (!config.apiKey) {
+  if (!Object.values(config.providers).some((providerConfig) => providerConfig.apiKey)) {
     console.error(
-      "[警告] 未检测到 DEEPSEEK_API_KEY，分析功能将不可用。请参考 .env.example 配置后重试。",
+      "[警告] 未检测到可用的 LLM API Key。请在 .env 中配置 DEEPSEEK_API_KEY、OPENAI_API_KEY 或 COPILOT_API_KEY 后重试。",
     );
   }
 

@@ -12,12 +12,22 @@ import { Banner } from "./components/Banner.js";
 import { Menu } from "./components/Menu.js";
 import { Spinner } from "./components/Spinner.js";
 import { TextInput } from "./components/TextInput.js";
-import type { AppConfig } from "./config.js";
+import { PROVIDER_LABELS, type AppConfig, type LlmProvider } from "./config.js";
 import { analyzeBug } from "./llm/analyze.js";
 import { ConversationMemory } from "./llm/conversation.js";
 import type { AnalysisKind } from "./llm/prompts.js";
+import { AnalysisMenuText, ProviderMenuText } from "./texts.js";
 
-type Screen = "idle" | "menu" | "input" | "logs" | "keywords" | "repositories" | "analyzing" | "result";
+type Screen =
+  | "idle"
+  | "provider"
+  | "analysis"
+  | "input"
+  | "logs"
+  | "keywords"
+  | "repositories"
+  | "analyzing"
+  | "result";
 
 interface AppProps {
   config: AppConfig;
@@ -26,6 +36,7 @@ interface AppProps {
 export function App({ config }: AppProps) {
   const { exit } = useApp();
   const [screen, setScreen] = useState<Screen>("idle");
+  const [provider, setProvider] = useState<LlmProvider>("deepseek");
   const [kind, setKind] = useState<AnalysisKind>("simple");
   const [command, setCommand] = useState("");
   const [bugText, setBugText] = useState("");
@@ -46,7 +57,7 @@ export function App({ config }: AppProps) {
 
   function backToMenu(): void {
     memory.current.clear();
-    setScreen("menu");
+    setScreen("provider");
     setCommand("");
     setBugText("");
     setBugDescription("");
@@ -102,6 +113,7 @@ export function App({ config }: AppProps) {
 
     analyzeBug({
       config,
+      provider,
       kind,
       bugText,
       history: memory.current.getMessages(),
@@ -124,7 +136,7 @@ export function App({ config }: AppProps) {
       });
 
     return () => controller.abort();
-  }, [screen, config, kind, bugText]);
+  }, [screen, config, provider, kind, bugText]);
 
   return (
     <Box flexDirection="column">
@@ -141,7 +153,7 @@ export function App({ config }: AppProps) {
                 if (cmd.type === "start") {
                   setCommand("");
                   setHint(undefined);
-                  setScreen("menu");
+                  setScreen("provider");
                 } else if (cmd.type === "exit") {
                   quit();
                 } else {
@@ -156,28 +168,62 @@ export function App({ config }: AppProps) {
         </Box>
       )}
 
-      {screen === "menu" && (
+      {screen === "provider" && (
         <Box flexDirection="column">
-          <Menu />
+          <Menu text={ProviderMenuText} />
           <Box marginTop={1} flexDirection="column">
-            <Text color="yellow">请选择：1. simple-analytic　2. deep-analytic　3. exit</Text>
+            <Text color="yellow">请选择：1. DeepSeek　2. ChatGPT　3. GitHub Copilot　4. exit</Text>
             <TextInput
               value={command}
               onChange={setCommand}
               onSubmit={(value) => {
-                const cmd = parseCommand(value, "menu");
+                const cmd = parseCommand(value, "provider");
+                if (cmd.type === "deepseek" || cmd.type === "chatgpt" || cmd.type === "copilot") {
+                  setProvider(cmd.type);
+                  setHint(undefined);
+                  setCommand("");
+                  setScreen("analysis");
+                } else if (cmd.type === "exit") {
+                  quit();
+                } else {
+                  setHint("无效选择，请输入 1 / 2 / 3 / 4 或 exit。");
+                  setCommand("");
+                }
+              }}
+              placeholder="1 / 2 / 3 / 4 / exit"
+            />
+            {hint !== undefined && <Text color="red">{hint}</Text>}
+          </Box>
+        </Box>
+      )}
+
+      {screen === "analysis" && (
+        <Box flexDirection="column">
+          <Menu text={AnalysisMenuText} />
+          <Box marginTop={1} flexDirection="column">
+            <Text color="yellow">当前 LLM：{PROVIDER_LABELS[provider]}</Text>
+            <Text color="yellow">请选择：1. simple-analytic　2. deep-analytic　3. back　4. exit</Text>
+            <TextInput
+              value={command}
+              onChange={setCommand}
+              onSubmit={(value) => {
+                const cmd = parseCommand(value, "analysis");
                 if (cmd.type === "simple") {
                   startInput("simple");
                 } else if (cmd.type === "deep") {
                   startInput("deep");
+                } else if (cmd.type === "back") {
+                  setHint(undefined);
+                  setCommand("");
+                  setScreen("provider");
                 } else if (cmd.type === "exit") {
                   quit();
                 } else {
-                  setHint("无效选择，请输入 1 / 2 / 3 或 exit。");
+                  setHint("无效选择，请输入 1 / 2 / 3 / 4 或 exit。");
                   setCommand("");
                 }
               }}
-              placeholder="1 / 2 / 3 / exit"
+              placeholder="1 / 2 / 3 / 4 / exit"
             />
             {hint !== undefined && <Text color="red">{hint}</Text>}
           </Box>
@@ -187,7 +233,9 @@ export function App({ config }: AppProps) {
       {screen === "input" && (
         <Box marginTop={1} flexDirection="column">
           <Text color="cyan">
-            {kind === "simple" ? "【1. simple-analytic】快速分析" : "【2. deep-analytic】深度分析"}
+            {`${PROVIDER_LABELS[provider]} · ${
+              kind === "simple" ? "【1. simple-analytic】快速分析" : "【2. deep-analytic】深度分析"
+            }`}
           </Text>
           <Text color="gray">
             {memory.current.hasHistory
@@ -305,7 +353,11 @@ export function App({ config }: AppProps) {
 
       {screen === "analyzing" && (
         <Box marginTop={1} flexDirection="column">
-          <Spinner text={kind === "simple" ? "DeepSeek 快速分析中..." : "DeepSeek 深度分析中..."} />
+          <Spinner
+            text={`${PROVIDER_LABELS[provider]} ${
+              kind === "simple" ? "快速分析中..." : "深度分析中..."
+            }`}
+          />
           <Text color="gray">分析进行中，按 Ctrl+C 退出。</Text>
         </Box>
       )}

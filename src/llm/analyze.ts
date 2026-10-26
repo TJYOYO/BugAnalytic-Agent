@@ -1,10 +1,11 @@
-import type { AppConfig } from "../config.js";
+import { PROVIDER_LABELS, type AppConfig, type LlmProvider } from "../config.js";
 import { chatCompletion } from "./langchain.js";
 import type { ChatMessage } from "./langchain.js";
 import { buildMessages, type AnalysisKind } from "./prompts.js";
 
 export interface AnalyzeOptions {
   config: AppConfig;
+  provider: LlmProvider;
   kind: AnalysisKind;
   bugText: string;
   history?: ChatMessage[];
@@ -13,16 +14,19 @@ export interface AnalyzeOptions {
 }
 
 export async function analyzeBug(options: AnalyzeOptions): Promise<string> {
-  const { config, kind, bugText, history, onDelta, signal } = options;
-  if (!config.apiKey) {
-    throw new Error("未配置 DEEPSEEK_API_KEY 环境变量。请设置环境变量或在 .env 文件中配置后重试。");
+  const { config, provider, kind, bugText, history, onDelta, signal } = options;
+  const providerConfig = config.providers[provider];
+  if (!providerConfig.apiKey) {
+    throw new Error(
+      `未配置 ${PROVIDER_LABELS[provider]} 的 ${providerConfig.apiKeyEnvName} 环境变量。请在 .env 文件或系统环境变量中配置后重试。`,
+    );
   }
   const messages = buildMessages(kind, bugText, history);
   return chatCompletion(
     {
-      apiKey: config.apiKey,
-      baseUrl: config.baseUrl,
-      model: config.model,
+      apiKey: providerConfig.apiKey,
+      baseUrl: providerConfig.baseUrl,
+      model: providerConfig.model,
       onDelta,
       signal,
     },

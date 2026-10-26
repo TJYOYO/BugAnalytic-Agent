@@ -1,7 +1,7 @@
 {
   "name": "buganalytic-agent",
   "version": "1.0.0",
-  "description": "基于 DeepSeek 的 Bug 分析 Agent —— Node.js + React(Ink) + TypeScript 实现的交互式 CLI",
+  "description": "支持 DeepSeek、ChatGPT 与 GitHub Copilot 的 Bug 分析 Agent —— Node.js + React(Ink) + TypeScript 实现的交互式 CLI",
   "type": "module",
   "bin": {
     "buganalyst": "./dist/cli.js"
@@ -24,6 +24,9 @@
     "bugs",
     "agent",
     "deepseek",
+    "openai",
+    "chatgpt",
+    "github-copilot",
     "react",
     "ink",
     "typescript"

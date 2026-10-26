@@ -7,19 +7,21 @@ import {
 } from "./analysis-context.js";
 import { resolveBugInput } from "./bug-input.js";
 import { parseCommand } from "./command.js";
-import type { AppConfig } from "./config.js";
+import { PROVIDER_LABELS, type AppConfig, type LlmProvider } from "./config.js";
 import { analyzeBug } from "./llm/analyze.js";
 import { ConversationMemory } from "./llm/conversation.js";
 import type { AnalysisKind } from "./llm/prompts.js";
-import { BannerText, MenuText } from "./texts.js";
+import { AnalysisMenuText, BannerText, ProviderMenuText } from "./texts.js";
 
-type LineScreen = "idle" | "menu" | "input" | "logs" | "keywords" | "repositories";
+type LineScreen = "idle" | "provider" | "analysis" | "input" | "logs" | "keywords" | "repositories";
 
 function promptFor(screen: LineScreen, hasHistory = false): void {
   if (screen === "idle") {
     process.stdout.write("\n> 输入 Analytic 开始分析，输入 exit 退出：");
-  } else if (screen === "menu") {
-    process.stdout.write("\n> 请选择 (1/2/3)：");
+  } else if (screen === "provider") {
+    process.stdout.write("\n> 请选择 LLM (1=DeepSeek / 2=ChatGPT / 3=GitHub Copilot / 4=exit)：");
+  } else if (screen === "analysis") {
+    process.stdout.write("\n> 请选择分析模式 (1=simple / 2=deep / 3=back / 4=exit)：");
   } else if (screen === "input") {
     process.stdout.write(
       hasHistory
@@ -42,6 +44,7 @@ export async function runLineMode(config: AppConfig): Promise<void> {
   console.log("\n提示：当前为非交互模式（stdin 非 TTY），将使用行输入方式。");
 
   let screen: LineScreen = "idle";
+  let provider: LlmProvider = "deepseek";
   let kind: AnalysisKind = "simple";
   let bugDescription = "";
   let logPaths: string[] = [];
@@ -52,7 +55,7 @@ export async function runLineMode(config: AppConfig): Promise<void> {
   for await (const raw of rl) {
     const line = raw.trim();
 
-    if (screen !== "idle" && screen !== "menu") {
+    if (screen !== "idle" && screen !== "provider" && screen !== "analysis") {
       const lower = line.toLowerCase();
       if (lower === "exit") {
         console.log("exit");
@@ -60,8 +63,8 @@ export async function runLineMode(config: AppConfig): Promise<void> {
       }
       if (lower === "menu" || lower === "back") {
         memory.clear();
-        screen = "menu";
-        console.log(MenuText);
+        screen = "provider";
+        console.log(ProviderMenuText);
         promptFor(screen, memory.hasHistory);
         continue;
       }
@@ -74,18 +77,35 @@ export async function runLineMode(config: AppConfig): Promise<void> {
         break;
       }
       if (cmd.type === "start") {
-        screen = "menu";
-        console.log(MenuText);
+        screen = "provider";
+        console.log(ProviderMenuText);
       } else {
         console.log('无效命令，请输入 "Analytic" 或 "exit"。');
       }
-    } else if (screen === "menu") {
-      const cmd = parseCommand(line, "menu");
+    } else if (screen === "provider") {
+      const cmd = parseCommand(line, "provider");
       if (cmd.type === "exit") {
         console.log("exit");
         break;
       }
-      if (cmd.type === "simple" || cmd.type === "deep") {
+      if (cmd.type === "deepseek" || cmd.type === "chatgpt" || cmd.type === "copilot") {
+        provider = cmd.type;
+        screen = "analysis";
+        console.log(`已选择 LLM：${PROVIDER_LABELS[provider]}`);
+        console.log(AnalysisMenuText);
+      } else {
+        console.log("无效选择，请输入 1 / 2 / 3 / 4 或 exit。");
+      }
+    } else if (screen === "analysis") {
+      const cmd = parseCommand(line, "analysis");
+      if (cmd.type === "exit") {
+        console.log("exit");
+        break;
+      }
+      if (cmd.type === "back") {
+        screen = "provider";
+        console.log(ProviderMenuText);
+      } else if (cmd.type === "simple" || cmd.type === "deep") {
         kind = cmd.type;
         memory.clear();
         screen = "input";
@@ -95,7 +115,7 @@ export async function runLineMode(config: AppConfig): Promise<void> {
             : "已选择：2. deep-analytic（深度分析）",
         );
       } else {
-        console.log("无效选择，请输入 1 / 2 / 3 或 exit。");
+        console.log("无效选择，请输入 1 / 2 / 3 / 4 或 exit。");
       }
     } else if (screen === "input") {
       const lower = line.toLowerCase();
@@ -105,15 +125,15 @@ export async function runLineMode(config: AppConfig): Promise<void> {
       }
       if (lower === "menu" || lower === "back") {
         memory.clear();
-        screen = "menu";
-        console.log(MenuText);
+        screen = "provider";
+        console.log(ProviderMenuText);
       } else {
         const input = resolveBugInput(line);
         if (!input.ok) {
           console.log(input.error);
         } else {
           if (memory.hasHistory) {
-            await runAnalysis(config, kind, input.value, memory);
+            await runAnalysis(config, provider, kind, input.value, memory);
           } else {
             bugDescription = input.value;
             screen = "logs";
@@ -145,7 +165,7 @@ export async function runLineMode(config: AppConfig): Promise<void> {
         if (!context.ok) {
           console.log(context.error);
         } else {
-          await runAnalysis(config, kind, context.value, memory);
+          await runAnalysis(config, provider, kind, context.value, memory);
           screen = "input";
         }
       }
@@ -156,14 +176,16 @@ export async function runLineMode(config: AppConfig): Promise<void> {
 
   async function runAnalysis(
     config: AppConfig,
+    provider: LlmProvider,
     kind: AnalysisKind,
     bugText: string,
     memory: ConversationMemory,
   ): Promise<void> {
-    console.log("\n正在调用 DeepSeek 分析中...\n");
+    console.log(`\n正在调用 ${PROVIDER_LABELS[provider]} 分析中...\n`);
     try {
       const result = await analyzeBug({
         config,
+        provider,
         kind,
         bugText,
         history: memory.getMessages(),
