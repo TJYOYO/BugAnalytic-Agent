@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useApp, useInput } from "ink";
+import {
+  buildAnalysisContext,
+  resolveKeywords,
+  resolveLogPaths,
+  resolveRepositoryPaths,
+} from "./analysis-context.js";
 import { resolveBugInput } from "./bug-input.js";
 import { parseCommand } from "./command.js";
 import { Banner } from "./components/Banner.js";
@@ -11,7 +17,7 @@ import { analyzeBug } from "./llm/analyze.js";
 import { ConversationMemory } from "./llm/conversation.js";
 import type { AnalysisKind } from "./llm/prompts.js";
 
-type Screen = "idle" | "menu" | "input" | "analyzing" | "result";
+type Screen = "idle" | "menu" | "input" | "logs" | "keywords" | "repositories" | "analyzing" | "result";
 
 interface AppProps {
   config: AppConfig;
@@ -23,6 +29,9 @@ export function App({ config }: AppProps) {
   const [kind, setKind] = useState<AnalysisKind>("simple");
   const [command, setCommand] = useState("");
   const [bugText, setBugText] = useState("");
+  const [bugDescription, setBugDescription] = useState("");
+  const [logPaths, setLogPaths] = useState<string[]>([]);
+  const [keywords, setKeywords] = useState<string[]>([]);
   const [hint, setHint] = useState<string | undefined>();
   const [result, setResult] = useState("");
   const [error, setError] = useState<string | undefined>();
@@ -40,6 +49,9 @@ export function App({ config }: AppProps) {
     setScreen("menu");
     setCommand("");
     setBugText("");
+    setBugDescription("");
+    setLogPaths([]);
+    setKeywords([]);
     setHint(undefined);
     setResult("");
     setError(undefined);
@@ -49,8 +61,25 @@ export function App({ config }: AppProps) {
     memory.current.clear();
     setKind(nextKind);
     setCommand("");
+    setBugText("");
+    setBugDescription("");
+    setLogPaths([]);
+    setKeywords([]);
     setHint(undefined);
     setScreen("input");
+  }
+
+  function handleCollectionCommand(value: string): boolean {
+    const lower = value.trim().toLowerCase();
+    if (lower === "exit") {
+      quit();
+      return true;
+    }
+    if (lower === "menu" || lower === "back") {
+      backToMenu();
+      return true;
+    }
+    return false;
   }
 
   useInput((input, key) => {
@@ -183,12 +212,92 @@ export function App({ config }: AppProps) {
                 setHint(input.error);
                 return;
               }
-              setBugText(input.value);
+              setBugDescription(input.value);
+              setHint(undefined);
+              setCommand("");
+              setScreen("logs");
+            }}
+            placeholder="Bug 描述...（或 @examples/bug-login.txt）"
+          />
+          {hint !== undefined && <Text color="red">{hint}</Text>}
+        </Box>
+      )}
+
+      {screen === "logs" && (
+        <Box marginTop={1} flexDirection="column">
+          <Text color="cyan">【日志文件】请输入一个或多个 .dlt / .txt 文件或目录路径</Text>
+          <Text color="gray">多个路径用逗号或分号分隔；输入 skip 跳过。目录会递归收集其中的 .dlt / .txt 文件。</Text>
+          <TextInput
+            value={command}
+            onChange={setCommand}
+            onSubmit={(value) => {
+              if (handleCollectionCommand(value)) return;
+              const logs = resolveLogPaths(value);
+              if (!logs.ok) {
+                setHint(logs.error);
+                return;
+              }
+              setLogPaths(logs.value);
+              setHint(undefined);
+              setCommand("");
+              setScreen("keywords");
+            }}
+            placeholder="@logs/app.dlt, @logs/error.txt / skip"
+          />
+          {hint !== undefined && <Text color="red">{hint}</Text>}
+        </Box>
+      )}
+
+      {screen === "keywords" && (
+        <Box marginTop={1} flexDirection="column">
+          <Text color="cyan">【分析关键词】请输入一个或多个关键词</Text>
+          <Text color="gray">多个关键词用逗号或分号分隔；将用于筛选日志和源码片段。输入 skip 跳过。</Text>
+          <TextInput
+            value={command}
+            onChange={setCommand}
+            onSubmit={(value) => {
+              if (handleCollectionCommand(value)) return;
+              setKeywords(resolveKeywords(value));
+              setHint(undefined);
+              setCommand("");
+              setScreen("repositories");
+            }}
+            placeholder="timeout, login, NullPointerException / skip"
+          />
+          {hint !== undefined && <Text color="red">{hint}</Text>}
+        </Box>
+      )}
+
+      {screen === "repositories" && (
+        <Box marginTop={1} flexDirection="column">
+          <Text color="cyan">【工程仓库】请输入一个或多个本地工程目录</Text>
+          <Text color="gray">多个仓库用逗号或分号分隔；将按关键词提取相关源码片段。输入 skip 跳过。</Text>
+          <TextInput
+            value={command}
+            onChange={setCommand}
+            onSubmit={(value) => {
+              if (handleCollectionCommand(value)) return;
+              const repositories = resolveRepositoryPaths(value);
+              if (!repositories.ok) {
+                setHint(repositories.error);
+                return;
+              }
+              const context = buildAnalysisContext({
+                description: bugDescription,
+                logPaths,
+                keywords,
+                repositoryPaths: repositories.value,
+              });
+              if (!context.ok) {
+                setHint(context.error);
+                return;
+              }
+              setBugText(context.value);
               setHint(undefined);
               setCommand("");
               setScreen("analyzing");
             }}
-            placeholder="Bug 描述...（或 @examples/bug-login.txt）"
+            placeholder="/workspace/service-a, /workspace/service-b / skip"
           />
           {hint !== undefined && <Text color="red">{hint}</Text>}
         </Box>

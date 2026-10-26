@@ -12,6 +12,7 @@ BugAnalytic-Agent is an interactive CLI that turns a raw bug report into a struc
 - Menu: `1. simple-analytic` (quick analysis) / `2. deep-analytic` (in-depth analysis) / `3. exit`
 - Type `exit` to print `exit` and quit
 - After an analysis, enter additional evidence or a follow-up question to continue the same Bug conversation; enter `menu` to start a new analysis
+- For a new analysis, optionally provide `.dlt`/`.txt` logs, multiple analysis keywords, and one or more local source repositories
 
 ### Quick start
 
@@ -60,6 +61,16 @@ npm start
 4. Watch DeepSeek stream the analysis back into the console
 5. Enter more evidence or a follow-up question to continue analyzing the same Bug with the previous conversation retained
 6. Enter `menu` to clear the current Bug context and choose a new mode; enter `3` or `exit` to quit
+
+#### Evidence inputs
+
+After the Bug description, the CLI guides you through three optional inputs:
+
+1. **Logs** — Enter one or more `.dlt` or `.txt` paths, or a directory containing them. Separate multiple paths with commas or semicolons. Directories are scanned recursively; `skip` omits logs.
+2. **Keywords** — Enter one or more comma- or semicolon-separated terms. They select matching log lines (with surrounding context) and source snippets. When omitted, the log extractor focuses on common error signals.
+3. **Repositories** — Enter one or more local repository directories, separated by commas or semicolons. The agent scans supported source files and supplies keyword-matched excerpts, not entire repositories. Enter `skip` to omit source context.
+
+Each log and source file is capped at 512 KiB, up to 50 log files and 20 source files, so prompts remain bounded. Binary DLT records with a standard `DLT\x01` storage header are decoded into timestamped, printable message excerpts; text-exported DLT files are handled as plain text.
 
 > When stdin is not a TTY (for example, a pipe), the CLI automatically switches to line mode, which is convenient for CI and scripting:
 >
@@ -163,6 +174,7 @@ src/
 - 菜单：`1. simple-analytic`（快速分析）/ `2. deep-analytic`（深度分析）/ `3. exit`（退出）
 - 输入 `exit` 输出 `exit` 并退出
 - 单次分析完成后可继续输入补充信息或追问；系统会保留当前 Bug 的上下文。输入 `menu` 可清空上下文并开始新的分析
+- 新分析时可选填 `.dlt`/`.txt` 日志、多个分析关键词，以及一个或多个本地工程仓库
 
 ### 快速开始
 
@@ -211,6 +223,16 @@ npm start
 4. 等待 DeepSeek 返回流式分析结果
 5. 继续输入补充信息或追问，基于之前的 Bug 上下文继续分析
 6. 输入 `menu` 清空当前 Bug 上下文并重新选模式；输入 `3` 或 `exit`，CLI 输出 `exit` 并退出
+
+#### 分析证据输入
+
+提交 Bug 描述后，CLI 会依次引导输入以下可选信息：
+
+1. **日志** — 输入一个或多个 `.dlt` / `.txt` 文件路径，或包含这些文件的目录；多个路径用逗号或分号分隔。目录会递归扫描，输入 `skip` 可跳过。
+2. **关键词** — 输入一个或多个关键词，使用逗号或分号分隔。关键词用于筛选命中的日志行及其上下文，以及相关源码片段；未指定时，日志会优先提取常见错误信号。
+3. **工程仓库** — 输入一个或多个本地工程目录，使用逗号或分号分隔。Agent 只会按关键词提取支持格式的源码片段，不会将整个仓库传入模型；输入 `skip` 可跳过。
+
+为了限制 Prompt 大小，每个日志和源码文件最多读取 512 KiB，最多处理 50 个日志文件和 20 个源码文件。带标准 `DLT\x01` storage header 的二进制 DLT 会被解码为带时间戳的可打印消息片段；文本导出的 DLT 按普通文本处理。
 
 > 非交互（stdin 非 TTY，如管道）时自动切换为行输入模式，方便 CI / 脚本调用：
 >
